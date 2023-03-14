@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  service-broker:
+    build:
+      context: ./service-broker
+      dockerfile: ./service-broker.dockerfile
+    restart: always
+    ports:
+      # expose on port 8081
+      - "8001:3001"
+    deploy:
+      mode: replicated
+      replicas: 1
