@@ -15,7 +15,7 @@ Conventions:
 1. create a **new folder** with the name of the new microservice.
 1. cd into it the new folder
 1. run `go mod init <new-module-name>`. e.g. `go mod init tagger`
-1. cd back up to the root folder of the monorepo. run `go use ./new-folder-name` to add the location of the new module to the monorepo workspace.
+1. cd back up to the root folder of the monorepo. run `go work use ./new-folder-name` to add the location of the new module to the monorepo workspace.
 
 ### Testing the builds of individual container images
 Because the docker files aren't all named `Dockerfile`, you will need the `-f` flag when invoking build commands:
@@ -29,7 +29,6 @@ install everything after a git pull | `go install ./dashboard/... ./service-brok
 start the **dashboard** | `go run ./dashboard/cmd/web`
 start the **broker** | `go run ./service-broker/cmd/api`
 start all services as docker containers | `docker compose up -d`
-
 
 Notes:
 - `go install` should cause `go.sum` files to be created or modified, if they are new or changed. Note: there doesn't seem to be a trivial way to install *all* modules at once.

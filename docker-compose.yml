@@ -7,7 +7,7 @@ services:
       dockerfile: ./service-broker.dockerfile
     restart: always
     ports:
-      - "8000:3000"
+      - "8880:3000"
     deploy:
       mode: replicated
       replicas: 1
@@ -17,7 +17,7 @@ services:
   #     dockerfile: ./dashboard.dockerfile
   #   restart: always
   #   ports:
-  #     - "8001:3001"
+  #     - "8881:3001"
   #   deploy:
   #     mode: replicated
   #     replicas: 1
