@@ -1,6 +1,18 @@
 version: '3'
 
 services:
+  pg-ublt:
+    image: postgres:14-alpine
+    restart: always
+    volumes:
+    # /var/lib/postgresql/data is where pg expects to store data, so map a local volume to that:
+    - ${DB_DATAPATH}:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
   service-broker:
     build:
       context: ./service-broker

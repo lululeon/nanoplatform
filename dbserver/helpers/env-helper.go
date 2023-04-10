@@ -29,7 +29,7 @@ func getEnv(key string) string {
 	return getEnvWithDefault(key, "")
 }
 
-func main() {
+func Prep(templateStr string) (string, string) {
 	envpath := os.Getenv("ENVPATH") // must be supplied at invocation
 
 	err := godotenv.Load(envpath)
@@ -48,13 +48,13 @@ func main() {
 	mainSchema := getEnv("MAIN_SCHEMA")
 	altSchema := getEnv("ALT_SCHEMA")
 
-	// TODO: determine next migration
-	byteArr, errFile := os.ReadFile("./dbserver/migrations/init.sql")
-	templateStr := string(byteArr)
+	// // TODO: determine next migration
+	// byteArr, errFile := os.ReadFile("./dbserver/migrations/init.sql")
+	// templateStr := string(byteArr)
 
-	if errFile != nil {
-		log.Fatal("Cannot read migration file!")
-	}
+	// if errFile != nil {
+	// 	log.Fatal("Cannot read migration file!")
+	// }
 
 	// parse/replace
 	replacer := strings.NewReplacer(
@@ -73,5 +73,5 @@ func main() {
 		pgUrl += "?sslmode=disable"
 	}
 
-	fmt.Print(migrationStr)
+	return migrationStr, pgUrl
 }
