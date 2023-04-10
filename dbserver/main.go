@@ -1,6 +1,7 @@
 package main
 
 import (
+	"dbserver/helpers"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -37,16 +38,26 @@ func allFiles(efs *embed.FS) (files []string, err error) {
 }
 
 func latestMigration(files []string) string {
-	var latest string
+	var latestId int
+	var latestMigrationFile string
+
+	// sheer insouciance
+	lenPrefix := len("migrations/")
+	lenIdentifier := len("nnnn")
+
 	for _, file := range files {
-		if (len(file)) < 15 {
+		len := len(file)
+		if len < 15 {
 			log.Fatalf("Encountered file [%s] with bad name - cannot extract unique identifier for migration. Bailing.", file)
 		}
-		id, _ := strconv.Atoi(file[11:15])
-		fmt.Printf("[%s] - [%d]\n", file, id)
+		id, _ := strconv.Atoi(file[lenPrefix:(lenPrefix + lenIdentifier)])
+		if id > latestId {
+			latestId = id
+			latestMigrationFile = file
+		}
 	}
 
-	return latest
+	return latestMigrationFile
 }
 
 func main() {
@@ -56,8 +67,11 @@ func main() {
 	}
 
 	latestMigrationFilePath := latestMigration(files)
-	sqlStr, pgUrl := Prep(latestMigrationFilePath)
-	// for _, file := range files {
-	// 	fmt.Println(file.Name(), file.IsDir())
-	// }
+	sqlTemplate := getFileContents(latestMigrationFilePath)
+	sqlStr, pgUrl := helpers.Prep(sqlTemplate)
+
+	// temp
+	fmt.Println(sqlStr)
+	fmt.Println("=====================================")
+	fmt.Println(pgUrl)
 }
