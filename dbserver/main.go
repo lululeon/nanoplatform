@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"dbserver/helpers"
 	"embed"
 	"fmt"
 	"io/fs"
 	"log"
 	"strconv"
+
+	"github.com/jackc/pgx/v5"
 )
 
 //go:embed migrations/*
@@ -60,6 +63,28 @@ func latestMigration(files []string) string {
 	return latestMigrationFile
 }
 
+func runMigration(ctx context.Context, pgUrl string, sqlStr string) {
+	fmt.Println(sqlStr)
+	conn, err := pgx.Connect(context.Background(), pgUrl)
+
+	if err != nil {
+		log.Fatalf("Unable to connect to database: %v\n", err)
+	}
+
+	defer conn.Close(ctx)
+
+	tx, _ := conn.Begin(ctx)
+	statusText, errTx := tx.Exec(ctx, sqlStr)
+	if errTx != nil {
+		fmt.Printf("SQL transaction error: %v\nStatus text:%s\n", errTx, statusText)
+		fmt.Println("*** Rolling back!! ***")
+		tx.Rollback(ctx)
+	} else {
+		fmt.Println("*** Committing... ***")
+		tx.Commit(ctx)
+	}
+}
+
 func main() {
 	files, errFindAllFiles := allFiles(&migrationsFS)
 	if errFindAllFiles != nil {
@@ -70,8 +95,5 @@ func main() {
 	sqlTemplate := getFileContents(latestMigrationFilePath)
 	sqlStr, pgUrl := helpers.Prep(sqlTemplate)
 
-	// temp
-	fmt.Println(sqlStr)
-	fmt.Println("=====================================")
-	fmt.Println(pgUrl)
+	runMigration(context.Background(), pgUrl, sqlStr)
 }

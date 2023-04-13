@@ -60,7 +60,7 @@ func Prep(templateStr string) (string, string) {
 	replacer := strings.NewReplacer(
 		"${DB_NAME}", pgdb,
 		"${MAIN_SCHEMA}", mainSchema,
-		"${ALT_SCHEMAN}", altSchema,
+		"${ALT_SCHEMA}", altSchema,
 		// TODO: shld really be sep user; proceeding as-is for simplicity for now
 		"${APP_USER}", pguser,
 		"${APP_USER_PASS}", pgpwd,

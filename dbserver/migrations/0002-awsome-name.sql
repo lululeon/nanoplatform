@@ -1,1 +1,0 @@
-testing awesome ${DB_NAME}
