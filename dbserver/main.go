@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -63,9 +64,20 @@ func latestMigration(files []string) string {
 	return latestMigrationFile
 }
 
-func runMigration(ctx context.Context, pgUrl string, sqlStr string) {
-	fmt.Println(sqlStr)
-	conn, err := pgx.Connect(context.Background(), pgUrl)
+func runMigration(ctx context.Context) {
+	files, errFindAllFiles := allFiles(&migrationsFS)
+	if errFindAllFiles != nil {
+		log.Fatal("can't list migration files!")
+	}
+
+	latestMigrationFilePath := latestMigration(files)
+	sqlTemplate := getFileContents(latestMigrationFilePath)
+
+	config := helpers.LoadConfig()
+
+	sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
+
+	conn, err := pgx.Connect(ctx, config.PgUrl)
 
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
@@ -86,14 +98,21 @@ func runMigration(ctx context.Context, pgUrl string, sqlStr string) {
 }
 
 func main() {
-	files, errFindAllFiles := allFiles(&migrationsFS)
-	if errFindAllFiles != nil {
-		log.Fatal("can't list migration files!")
+	fmt.Printf("%v\n", os.Args)
+
+	helpTxt := "Must provide a valid command to execute: init|create|migrate"
+
+	if len(os.Args) != 2 {
+		fmt.Println(helpTxt)
+		os.Exit(0)
+	} else {
+		switch cmd := os.Args[1]; cmd {
+		case "migrate":
+			runMigration(context.Background())
+		default:
+			fmt.Println(helpTxt)
+		}
+
+		os.Exit(0)
 	}
-
-	latestMigrationFilePath := latestMigration(files)
-	sqlTemplate := getFileContents(latestMigrationFilePath)
-	sqlStr, pgUrl := helpers.Prep(sqlTemplate)
-
-	runMigration(context.Background(), pgUrl, sqlStr)
 }
