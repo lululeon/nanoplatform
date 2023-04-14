@@ -97,9 +97,26 @@ func runMigration(ctx context.Context) {
 	}
 }
 
-func main() {
-	fmt.Printf("%v\n", os.Args)
+func initialiseMigrations(ctx context.Context) {
+	config := helpers.LoadConfig()
+	sqlStr := "create table if not exists migrations (id int primary key, name text not null, hash text not null);"
+	conn, err := pgx.Connect(ctx, config.PgUrl)
 
+	if err != nil {
+		log.Fatalf("Unable to connect to database: %v\n", err)
+	}
+
+	defer conn.Close(ctx)
+	statusText, errTx := conn.Exec(ctx, sqlStr)
+	if errTx != nil {
+		fmt.Printf("SQL transaction error: %v\nStatus text:%s\n", errTx, statusText)
+	} else {
+		fmt.Println("Migrations table ready.")
+	}
+}
+
+func main() {
+	ctx := context.Background()
 	helpTxt := "Must provide a valid command to execute: init|create|migrate"
 
 	if len(os.Args) != 2 {
@@ -107,12 +124,13 @@ func main() {
 		os.Exit(0)
 	} else {
 		switch cmd := os.Args[1]; cmd {
+		case "init":
+			initialiseMigrations(ctx)
 		case "migrate":
-			runMigration(context.Background())
+			runMigration(ctx)
 		default:
 			fmt.Println(helpTxt)
 		}
-
-		os.Exit(0)
 	}
+	os.Exit(0)
 }
