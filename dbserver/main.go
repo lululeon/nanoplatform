@@ -2,16 +2,26 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
 	"dbserver/helpers"
 	"embed"
 	"fmt"
 	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
+
+type Migration struct {
+	Id       int
+	Filepath string
+	Name     string
+	Hash     string
+}
 
 //go:embed migrations/*
 var migrationsFS embed.FS
@@ -41,7 +51,25 @@ func allFiles(efs *embed.FS) (files []string, err error) {
 	return files, nil
 }
 
-func latestMigration(files []string) string {
+func makeHash(str string) string {
+	byteArr := []byte(str)
+
+	// could use bcrypt or similar for beefier sec but we are not fussed atm:
+	hasher := sha1.New()
+	_, hashErr := hasher.Write(byteArr)
+	if hashErr != nil {
+		log.Fatal("can't hash the migration!")
+	}
+
+	// c/shouldve stored the integer hash, but for some reason I'd fancied storing the hex representation of the checksum and now the tbl is built that way, so:
+	return fmt.Sprintf("%x", hasher.Sum(nil))
+}
+
+func isBlank(str string) bool {
+	return len(strings.TrimSpace(str)) == 0
+}
+
+func latestMigration(files []string) Migration {
 	var latestId int
 	var latestMigrationFile string
 
@@ -61,7 +89,39 @@ func latestMigration(files []string) string {
 		}
 	}
 
-	return latestMigrationFile
+	_, filename := filepath.Split(latestMigrationFile)
+	migName := strings.Split(filename, ".")
+
+	return Migration{
+		Id:       latestId,
+		Filepath: latestMigrationFile,
+		Name:     migName[0][5:],
+	}
+}
+
+func sqlForMigrationsRecord(mig Migration) string {
+	fmt.Printf("Processing migration - id: [%d] name: [%s] hash: [%s] \n", mig.Id, mig.Name, mig.Hash)
+
+	if mig.Id == 0 || isBlank(mig.Name) || isBlank(mig.Hash) {
+		log.Fatalf("Need valid id, name and hash for migration!")
+	}
+
+	return fmt.Sprintf("insert into migrations(id, name, hash) values (%d, '%s', '%s');", mig.Id, mig.Name, mig.Hash)
+}
+
+func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string) bool {
+	allOK := true
+
+	for _, sql := range sqlStrings {
+		_, err := tx.Exec(ctx, sql)
+		if err != nil {
+			fmt.Printf("SQL transaction error: %v\n", err)
+			allOK = false
+			break
+		}
+	}
+
+	return allOK
 }
 
 func runMigration(ctx context.Context) {
@@ -70,12 +130,14 @@ func runMigration(ctx context.Context) {
 		log.Fatal("can't list migration files!")
 	}
 
-	latestMigrationFilePath := latestMigration(files)
-	sqlTemplate := getFileContents(latestMigrationFilePath)
+	mig := latestMigration(files)
+	sqlTemplate := getFileContents(mig.Filepath)
 
 	config := helpers.LoadConfig()
 
 	sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
+	mig.Hash = makeHash(sqlStr)
+	sqlHashStore := sqlForMigrationsRecord(mig)
 
 	conn, err := pgx.Connect(ctx, config.PgUrl)
 
@@ -86,14 +148,14 @@ func runMigration(ctx context.Context) {
 	defer conn.Close(ctx)
 
 	tx, _ := conn.Begin(ctx)
-	statusText, errTx := tx.Exec(ctx, sqlStr)
-	if errTx != nil {
-		fmt.Printf("SQL transaction error: %v\nStatus text:%s\n", errTx, statusText)
-		fmt.Println("*** Rolling back!! ***")
-		tx.Rollback(ctx)
-	} else {
+	ok := runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore})
+
+	if ok {
 		fmt.Println("*** Committing... ***")
 		tx.Commit(ctx)
+	} else {
+		fmt.Println("*** Rolling back!! ***")
+		tx.Rollback(ctx)
 	}
 }
 
