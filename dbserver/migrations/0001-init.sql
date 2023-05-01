@@ -2,7 +2,6 @@
 revoke all on database ${DB_NAME} from public;
 revoke all on schema public from public;
 create schema if not exists ${MAIN_SCHEMA};
-create schema if not exists ${ALT_SCHEMA};
 
 -- for gen_random_uuid():
 create extension if not exists pgcrypto;

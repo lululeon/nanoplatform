@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"dbserver/helpers"
-	"embed"
 	"fmt"
 	"io/fs"
 	"log"
@@ -23,20 +22,17 @@ type Migration struct {
 	Hash     string
 }
 
-//go:embed migrations/*
-var migrationsFS embed.FS
-
 func getFileContents(migrationFile string) string {
-	byteArr, errFile := migrationsFS.ReadFile(migrationFile)
+	byteArr, errFile := os.ReadFile(migrationFile)
 	if errFile != nil {
 		log.Fatal("Failed to read file!")
 	}
 	return string(byteArr)
 }
 
-func allFiles(efs *embed.FS) (files []string, err error) {
+func allFiles(filesys fs.FS) (files []string, err error) {
 	startFromRoot := "."
-	if err := fs.WalkDir(efs, startFromRoot, func(path string, d fs.DirEntry, err error) error {
+	if err := fs.WalkDir(filesys, startFromRoot, func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			return nil
 		}
@@ -65,24 +61,19 @@ func makeHash(str string) string {
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
-func isBlank(str string) bool {
-	return len(strings.TrimSpace(str)) == 0
-}
-
 func latestMigration(files []string) Migration {
-	var latestId int
+	var latestId int = 0
 	var latestMigrationFile string
 
 	// sheer insouciance
-	lenPrefix := len("migrations/")
 	lenIdentifier := len("nnnn")
 
 	for _, file := range files {
 		len := len(file)
-		if len < 15 {
+		if len < lenIdentifier {
 			log.Fatalf("Encountered file [%s] with bad name - cannot extract unique identifier for migration. Bailing.", file)
 		}
-		id, _ := strconv.Atoi(file[lenPrefix:(lenPrefix + lenIdentifier)])
+		id, _ := strconv.Atoi(file[0:lenIdentifier])
 		if id > latestId {
 			latestId = id
 			latestMigrationFile = file
@@ -100,9 +91,7 @@ func latestMigration(files []string) Migration {
 }
 
 func sqlForMigrationsRecord(mig Migration) string {
-	fmt.Printf("Processing migration - id: [%d] name: [%s] hash: [%s] \n", mig.Id, mig.Name, mig.Hash)
-
-	if mig.Id == 0 || isBlank(mig.Name) || isBlank(mig.Hash) {
+	if mig.Id == 0 || helpers.IsBlank(mig.Name) || helpers.IsBlank(mig.Hash) {
 		log.Fatalf("Need valid id, name and hash for migration!")
 	}
 
@@ -125,19 +114,21 @@ func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string) bool 
 }
 
 func runMigration(ctx context.Context) {
-	files, errFindAllFiles := allFiles(&migrationsFS)
+	config := helpers.LoadConfig()
+
+	fsys := os.DirFS(config.MigrationsDir)
+	files, errFindAllFiles := allFiles(fsys)
 	if errFindAllFiles != nil {
 		log.Fatal("can't list migration files!")
 	}
 
 	mig := latestMigration(files)
-	sqlTemplate := getFileContents(mig.Filepath)
-
-	config := helpers.LoadConfig()
+	sqlTemplate := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
 
 	sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
 	mig.Hash = makeHash(sqlStr)
 	sqlHashStore := sqlForMigrationsRecord(mig)
+	fingerprint := fmt.Sprintf("migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
 
 	conn, err := pgx.Connect(ctx, config.PgUrl)
 
@@ -151,10 +142,10 @@ func runMigration(ctx context.Context) {
 	ok := runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore})
 
 	if ok {
-		fmt.Println("*** Committing... ***")
+		fmt.Printf("✅ Committing: %s\n", fingerprint)
 		tx.Commit(ctx)
 	} else {
-		fmt.Println("*** Rolling back!! ***")
+		fmt.Printf("❌ Failed - Rolling Back: %s\n", fingerprint)
 		tx.Rollback(ctx)
 	}
 }

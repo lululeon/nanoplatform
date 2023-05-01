@@ -12,14 +12,14 @@ import (
 type Config struct {
 	Env string
 
-	PgUser     string
-	PgPwd      string
-	PgDb       string
-	PgHost     string
-	PgPort     string
-	PgUrl      string
-	MainSchema string
-	AltSchema  string
+	PgUser        string
+	PgPwd         string
+	PgDb          string
+	PgHost        string
+	PgPort        string
+	PgUrl         string
+	MigrationsDir string
+	MainSchema    string
 }
 
 func getEnvWithDefaultAndBlankableFlag(key string, defaultValue string, canBeBlank bool) string {
@@ -43,12 +43,15 @@ func getEnv(key string) string {
 }
 
 func LoadConfig() *Config {
-	envpath := os.Getenv("ENVPATH") // must be supplied at invocation
+	// must be supplied (e.g. in local dev) if you want to load an env file
+	envpath := getEnv("ENVPATH")
 
-	err := godotenv.Load(envpath)
-	if err != nil {
-		msg := fmt.Sprintf("Could not load env file at path [%s]", envpath)
-		log.Fatal(msg)
+	if !IsBlank(envpath) {
+		err := godotenv.Load(envpath)
+		if err != nil {
+			msg := fmt.Sprintf("Could not load env file at path [%s]", envpath)
+			log.Fatal(msg)
+		}
 	}
 
 	env := getEnvWithDefault("APP_ENV", "prod")
@@ -58,24 +61,23 @@ func LoadConfig() *Config {
 	pghost := getEnv("PG_HOST")
 	pgport := getEnvWithDefault("PG_PORT", "5432")
 	mainSchema := getEnv("MAIN_SCHEMA")
-	altSchema := getEnv("ALT_SCHEMA")
+	migDir := getEnv("MIGPATH")
 
-	// build db connection string
 	PGURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
 	if strings.EqualFold(env, "local") {
 		PGURL += "?sslmode=disable"
 	}
 
 	config := Config{
-		Env:        env,
-		PgUser:     pguser,
-		PgPwd:      pgpwd,
-		PgDb:       pgdb,
-		PgHost:     pghost,
-		PgPort:     pgport,
-		MainSchema: mainSchema,
-		AltSchema:  altSchema,
-		PgUrl:      PGURL,
+		Env:           env,
+		PgUser:        pguser,
+		PgPwd:         pgpwd,
+		PgDb:          pgdb,
+		PgHost:        pghost,
+		PgPort:        pgport,
+		MainSchema:    mainSchema,
+		PgUrl:         PGURL,
+		MigrationsDir: migDir,
 	}
 
 	return &config
@@ -85,7 +87,6 @@ func HydrateSQLTemplate(templateStr string, config Config) string {
 	replacer := strings.NewReplacer(
 		"${DB_NAME}", config.PgDb,
 		"${MAIN_SCHEMA}", config.MainSchema,
-		"${ALT_SCHEMA}", config.AltSchema,
 		// TODO: shld really be sep user; proceeding as-is for simplicity for now
 		"${APP_USER}", config.PgUser,
 		"${APP_USER_PASS}", config.PgPwd,
