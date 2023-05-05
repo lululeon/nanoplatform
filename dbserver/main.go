@@ -61,9 +61,9 @@ func makeHash(str string) string {
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
-func latestMigration(files []string) Migration {
-	var latestId int = 0
-	var latestMigrationFile string
+func latestMigration(files []string, lastCommittedId int32) []Migration {
+	var latestId = int(lastCommittedId)
+	var migs []Migration
 
 	// sheer insouciance
 	lenIdentifier := len("nnnn")
@@ -75,19 +75,18 @@ func latestMigration(files []string) Migration {
 		}
 		id, _ := strconv.Atoi(file[0:lenIdentifier])
 		if id > latestId {
-			latestId = id
-			latestMigrationFile = file
+			_, filename := filepath.Split(file)
+			migName := strings.Split(filename, ".")
+
+			migs = append(migs, Migration{
+				Id:       id,
+				Filepath: file,
+				Name:     migName[0][5:],
+			})
 		}
 	}
 
-	_, filename := filepath.Split(latestMigrationFile)
-	migName := strings.Split(filename, ".")
-
-	return Migration{
-		Id:       latestId,
-		Filepath: latestMigrationFile,
-		Name:     migName[0][5:],
-	}
+	return migs
 }
 
 func sqlForMigrationsRecord(mig Migration) string {
@@ -98,7 +97,7 @@ func sqlForMigrationsRecord(mig Migration) string {
 	return fmt.Sprintf("insert into migrations(id, name, hash) values (%d, '%s', '%s');", mig.Id, mig.Name, mig.Hash)
 }
 
-func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string) bool {
+func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string, ch chan bool) {
 	allOK := true
 
 	for _, sql := range sqlStrings {
@@ -110,7 +109,29 @@ func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string) bool 
 		}
 	}
 
-	return allOK
+	ch <- allOK
+}
+
+func getLatestCommittedMigrationId(ctx context.Context, conn *pgx.Conn, ch chan int32) {
+	var id int32
+	var name string
+	var hash string
+
+	rows, err := conn.Query(ctx, "select id, name, hash from public.migrations order by id desc limit 1")
+	if err != nil {
+		log.Fatalf("SQL query error: %v\n", err)
+	}
+
+	defer rows.Close()
+
+	if rows.Next() {
+		rows.Scan(&id, &name, &hash)
+		fmt.Printf("🔒 Last migration: [%d][%s][%s]\n", id, name, hash)
+		ch <- id
+		return
+	}
+
+	ch <- 0
 }
 
 func runMigration(ctx context.Context) {
@@ -122,14 +143,7 @@ func runMigration(ctx context.Context) {
 		log.Fatal("can't list migration files!")
 	}
 
-	mig := latestMigration(files)
-	sqlTemplate := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
-
-	sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
-	mig.Hash = makeHash(sqlStr)
-	sqlHashStore := sqlForMigrationsRecord(mig)
-	fingerprint := fmt.Sprintf("migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
-
+	// ready db connection
 	conn, err := pgx.Connect(ctx, config.PgUrl)
 
 	if err != nil {
@@ -138,15 +152,34 @@ func runMigration(ctx context.Context) {
 
 	defer conn.Close(ctx)
 
-	tx, _ := conn.Begin(ctx)
-	ok := runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore})
+	ch := make(chan int32)
+	chmig := make(chan bool)
 
-	if ok {
-		fmt.Printf("✅ Committing: %s\n", fingerprint)
-		tx.Commit(ctx)
-	} else {
-		fmt.Printf("❌ Failed - Rolling Back: %s\n", fingerprint)
-		tx.Rollback(ctx)
+	// prepare for migrations
+	go getLatestCommittedMigrationId(ctx, conn, ch)
+	lastCommittedId := <-ch
+	migs := latestMigration(files, lastCommittedId)
+
+	var ok bool
+	for _, mig := range migs {
+		sqlTemplate := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
+
+		sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
+		mig.Hash = makeHash(sqlStr)
+		sqlHashStore := sqlForMigrationsRecord(mig)
+		fingerprint := fmt.Sprintf("Migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
+		tx, _ := conn.Begin(ctx)
+		go runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore}, chmig)
+		ok = <-chmig
+
+		if ok {
+			fmt.Printf("✅ Committing: %s\n", fingerprint)
+			tx.Commit(ctx)
+		} else {
+			fmt.Printf("❌ Failed - Rolling Back: %s\n", fingerprint)
+			tx.Rollback(ctx)
+			break //stop processing
+		}
 	}
 }
 
