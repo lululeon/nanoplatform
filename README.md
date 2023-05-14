@@ -22,6 +22,7 @@ Because the docker files aren't all named `Dockerfile`, you will need the `-f` f
 - cd to microservice folder
 - run `docker build . -f <dockerfilename>`
 - to capture all output during the build process: append ` &> build.log` to build command
+
 ### Running the services
 Task | command
 ---|------

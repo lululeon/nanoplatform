@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Migration struct {
@@ -112,12 +113,12 @@ func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string, ch ch
 	ch <- allOK
 }
 
-func getLatestCommittedMigrationId(ctx context.Context, conn *pgx.Conn, ch chan int32) {
+func getLatestCommittedMigrationId(ctx context.Context, pool *pgxpool.Pool, ch chan int32) {
 	var id int32
 	var name string
 	var hash string
 
-	rows, err := conn.Query(ctx, "select id, name, hash from public.migrations order by id desc limit 1")
+	rows, err := pool.Query(ctx, "select id, name, hash from public.migrations order by id desc limit 1")
 	if err != nil {
 		log.Fatalf("SQL query error: %v\n", err)
 	}
@@ -143,32 +144,33 @@ func runMigration(ctx context.Context) {
 		log.Fatal("can't list migration files!")
 	}
 
-	// ready db connection
-	conn, err := pgx.Connect(ctx, config.PgUrl)
-
+	// need a pool for multi-statement queries
+	pool, err := pgxpool.New(ctx, config.PgUrl)
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Unable to create connection pool: %v\n", err)
+		os.Exit(1)
 	}
-
-	defer conn.Close(ctx)
+	defer pool.Close()
 
 	ch := make(chan int32)
 	chmig := make(chan bool)
 
 	// prepare for migrations
-	go getLatestCommittedMigrationId(ctx, conn, ch)
+	go getLatestCommittedMigrationId(ctx, pool, ch)
 	lastCommittedId := <-ch
 	migs := latestMigration(files, lastCommittedId)
 
 	var ok bool
 	for _, mig := range migs {
 		sqlTemplate := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
-
 		sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
+
 		mig.Hash = makeHash(sqlStr)
 		sqlHashStore := sqlForMigrationsRecord(mig)
+
 		fingerprint := fmt.Sprintf("Migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
-		tx, _ := conn.Begin(ctx)
+
+		tx, _ := pool.Begin(ctx)
 		go runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore}, chmig)
 		ok = <-chmig
 
