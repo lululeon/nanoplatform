@@ -135,22 +135,12 @@ func getLatestCommittedMigrationId(ctx context.Context, pool *pgxpool.Pool, ch c
 	ch <- 0
 }
 
-func runMigration(ctx context.Context) {
-	config := helpers.LoadConfig()
-
+func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Pool) {
 	fsys := os.DirFS(config.MigrationsDir)
 	files, errFindAllFiles := allFiles(fsys)
 	if errFindAllFiles != nil {
 		log.Fatal("can't list migration files!")
 	}
-
-	// need a pool for multi-statement queries
-	pool, err := pgxpool.New(ctx, config.PgUrl)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create connection pool: %v\n", err)
-		os.Exit(1)
-	}
-	defer pool.Close()
 
 	ch := make(chan int32)
 	chmig := make(chan bool)
@@ -185,6 +175,34 @@ func runMigration(ctx context.Context) {
 	}
 }
 
+func createMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Pool, migName string) {
+	ch := make(chan int32)
+
+	go getLatestCommittedMigrationId(ctx, pool, ch)
+	lastCommittedId := <-ch
+
+	nextId := int(lastCommittedId) + 1
+
+	const allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_ "
+	runes := []rune{}
+
+	// toss any funky runes
+	for _, c := range migName {
+		nextChar := strings.ToLower(string(c))
+		if strings.Contains(allowed, nextChar) {
+			runes = append(runes[:], c)
+		}
+	}
+
+	cleanStr := strings.Join(strings.Split(string(runes), " "), "-")
+	targetName := fmt.Sprintf("%04d-%s.sql", nextId, cleanStr)
+	targetPath := filepath.Join(config.MigrationsDir, targetName)
+
+	emptyBytArray := []byte("")
+	os.WriteFile(targetPath, emptyBytArray, 0644)
+	fmt.Printf("✨ New migration file ready: %s\n", targetName)
+}
+
 func initialiseMigrations(ctx context.Context) {
 	config := helpers.LoadConfig()
 	sqlStr := "create table if not exists migrations (id int primary key, name text not null, hash text not null);"
@@ -205,17 +223,35 @@ func initialiseMigrations(ctx context.Context) {
 
 func main() {
 	ctx := context.Background()
-	helpTxt := "Must provide a valid command to execute: init|create|migrate"
+	helpTxt := "Must provide a valid command to execute: init|create|migrate."
+	createHelpTxt := "The create command requires a name for your migration."
 
-	if len(os.Args) != 2 {
+	if len(os.Args) < 2 {
 		fmt.Println(helpTxt)
 		os.Exit(0)
 	} else {
+		config := helpers.LoadConfig()
+
+		// need a pool for multi-statement queries
+		pool, err := pgxpool.New(ctx, config.PgUrl)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to create connection pool: %v\n", err)
+			os.Exit(1)
+		}
+		defer pool.Close()
+
 		switch cmd := os.Args[1]; cmd {
 		case "init":
 			initialiseMigrations(ctx)
 		case "migrate":
-			runMigration(ctx)
+			runMigration(ctx, config, pool)
+		case "create":
+			if len(os.Args) < 3 {
+				fmt.Println(createHelpTxt)
+				break
+			}
+			nameArgs := strings.Join(os.Args[2:], "-")
+			createMigration(ctx, config, pool, nameArgs)
 		default:
 			fmt.Println(helpTxt)
 		}
