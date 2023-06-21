@@ -12,14 +12,15 @@ import (
 type Config struct {
 	Env string
 
-	PgUser        string
-	PgPwd         string
-	PgDb          string
-	PgHost        string
-	PgPort        string
-	PgUrl         string
-	MigrationsDir string
-	MainSchema    string
+	PgUser            string
+	PgPwd             string
+	PgDb              string
+	PgHost            string
+	PgPort            string
+	PgUrl             string
+	MigrationsDir     string
+	MainSchema        string
+	SupertokensSchema string
 }
 
 func getEnvWithDefaultAndBlankableFlag(key string, defaultValue string, canBeBlank bool) string {
@@ -61,6 +62,7 @@ func LoadConfig() *Config {
 	pghost := getEnv("PG_HOST")
 	pgport := getEnvWithDefault("PG_PORT", "5432")
 	mainSchema := getEnv("MAIN_SCHEMA")
+	supertokensSchema := getEnv("SUPERTOKENS_SCHEMA")
 	migDir := getEnv("MIGPATH")
 
 	PGURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
@@ -69,15 +71,16 @@ func LoadConfig() *Config {
 	}
 
 	config := Config{
-		Env:           env,
-		PgUser:        pguser,
-		PgPwd:         pgpwd,
-		PgDb:          pgdb,
-		PgHost:        pghost,
-		PgPort:        pgport,
-		MainSchema:    mainSchema,
-		PgUrl:         PGURL,
-		MigrationsDir: migDir,
+		Env:               env,
+		PgUser:            pguser,
+		PgPwd:             pgpwd,
+		PgDb:              pgdb,
+		PgHost:            pghost,
+		PgPort:            pgport,
+		MainSchema:        mainSchema,
+		SupertokensSchema: supertokensSchema,
+		PgUrl:             PGURL,
+		MigrationsDir:     migDir,
 	}
 
 	return &config
@@ -87,7 +90,7 @@ func HydrateSQLTemplate(templateStr string, config Config) string {
 	replacer := strings.NewReplacer(
 		"${DB_NAME}", config.PgDb,
 		"${MAIN_SCHEMA}", config.MainSchema,
-		// TODO: shld really be sep user; proceeding as-is for simplicity for now
+		"${SUPERTOKENS_SCHEMA}", config.SupertokensSchema,
 		"${APP_USER}", config.PgUser,
 		"${APP_USER_PASS}", config.PgPwd,
 	)

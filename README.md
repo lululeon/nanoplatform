@@ -33,3 +33,10 @@ start all services as docker containers | `docker compose up -d`
 
 Notes:
 - `go install` should cause `go.sum` files to be created or modified, if they are new or changed. Note: there doesn't seem to be a trivial way to install *all* modules at once.
+
+### Service Enpoints
+Service | endpoint
+---|------
+GQL | http://localhost:5000/graphql
+pg | localhost:5432
+supertokens | http://localhost:3567/hello
