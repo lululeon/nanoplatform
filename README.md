@@ -52,3 +52,4 @@ auth service (auth-fe)| http://localhost:7567
 
 # TODOS
 - [ ] restrict `auth/cmd/api/routes.go` allowed origins eg to localhost:3000
+- [ ] auth.helper `post()` should not use hardcoded urls
