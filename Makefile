@@ -16,6 +16,8 @@ migrate:
 	make .restartgql
 create:
 	ENVPATH=./.env go run ./dbserver/ $(MAKECMDGOALS)
+create-meta:
+	ENVPATH=./.env go run ./dbserver/ $(MAKECMDGOALS)
 .restartgql:
 	docker compose restart graphql-api
 

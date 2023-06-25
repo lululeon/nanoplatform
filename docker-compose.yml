@@ -27,16 +27,16 @@ services:
     depends_on:
       pg-ublt:
         condition: service_healthy
-  service-broker:
-    build:
-      context: ./service-broker
-      dockerfile: ./service-broker.dockerfile
-    restart: always
-    ports:
-      - "8880:3000"
-    deploy:
-      mode: replicated
-      replicas: 1
+  # service-broker:
+  #   build:
+  #     context: ./service-broker
+  #     dockerfile: ./service-broker.dockerfile
+  #   restart: always
+  #   ports:
+  #     - "8880:3000"
+  #   deploy:
+  #     mode: replicated
+  #     replicas: 1
   supertokens:
     image: registry.supertokens.io/supertokens/supertokens-postgresql
     depends_on:
@@ -53,6 +53,21 @@ services:
       test: >
         bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
       interval: 10s
+      timeout: 5s
+      retries: 5
+  auth-service:
+    build:
+      context: ./auth
+      dockerfile: ./Dockerfile
+    restart: always
+    depends_on:
+      supertokens:
+        condition: service_healthy
+    ports:
+      - "7567:7567"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7567/ping"]
+      interval: 15s
       timeout: 5s
       retries: 5
   # dashboard:
