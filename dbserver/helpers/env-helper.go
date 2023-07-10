@@ -12,15 +12,17 @@ import (
 type Config struct {
 	Env string
 
-	PgUser            string
-	PgPwd             string
-	PgDb              string
-	PgHost            string
-	PgPort            string
-	PgUrl             string
-	MigrationsDir     string
-	MainSchema        string
-	SupertokensSchema string
+	PgUser               string
+	PgPwd                string
+	PgDb                 string
+	PgHost               string
+	PgPort               string
+	PgUrl                string
+	MigrationsDir        string
+	MainSchema           string
+	SupertokensSchema    string
+	AuthServerUrl        string
+	SupertokensServerUrl string
 }
 
 func getEnvWithDefaultAndBlankableFlag(key string, defaultValue string, canBeBlank bool) string {
@@ -64,23 +66,24 @@ func LoadConfig() *Config {
 	mainSchema := getEnv("MAIN_SCHEMA")
 	supertokensSchema := getEnv("SUPERTOKENS_SCHEMA")
 	migDir := getEnv("MIGPATH")
+	authServerUrl := getEnv("AUTH_SERVER_URL")
+	stServerUrl := getEnv("SUPERTOKENS_SERVER_URL")
 
-	PGURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
-	if strings.EqualFold(env, "local") {
-		PGURL += "?sslmode=disable"
-	}
+	pgUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
 
 	config := Config{
-		Env:               env,
-		PgUser:            pguser,
-		PgPwd:             pgpwd,
-		PgDb:              pgdb,
-		PgHost:            pghost,
-		PgPort:            pgport,
-		MainSchema:        mainSchema,
-		SupertokensSchema: supertokensSchema,
-		PgUrl:             PGURL,
-		MigrationsDir:     migDir,
+		Env:                  env,
+		PgUser:               pguser,
+		PgPwd:                pgpwd,
+		PgDb:                 pgdb,
+		PgHost:               pghost,
+		PgPort:               pgport,
+		MainSchema:           mainSchema,
+		SupertokensSchema:    supertokensSchema,
+		PgUrl:                pgUrl,
+		MigrationsDir:        migDir,
+		AuthServerUrl:        authServerUrl,
+		SupertokensServerUrl: stServerUrl,
 	}
 
 	return &config

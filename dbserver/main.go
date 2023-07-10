@@ -158,18 +158,32 @@ func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Poo
 	migs := getPendingMigrations(files, lastCommittedId)
 
 	var ok bool
+	var fingerprint string
 	for _, mig := range migs {
-		sqlTemplate := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
-		sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
-
-		mig.Hash = makeHash(sqlStr)
-		sqlHashStore := sqlForMigrationsRecord(mig)
-
-		fingerprint := fmt.Sprintf("Migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
-
 		tx, _ := pool.Begin(ctx)
-		go runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore}, chmig)
-		ok = <-chmig
+		content := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
+		var queries []string
+
+		if mig.Type == "core" {
+			sqlStr := helpers.HydrateSQLTemplate(content, *config)
+			mig.Hash = makeHash(sqlStr)
+			queries = append(queries, sqlStr)
+		} else {
+			// mig.Type authz
+			mig.Hash = makeHash(content)
+		}
+
+		sqlHashStore := sqlForMigrationsRecord(mig)
+		queries = append(queries, sqlHashStore)
+
+		fingerprint = fmt.Sprintf("Migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
+
+		if mig.Type == "core" {
+			go runInTransaction(ctx, tx, queries, chmig)
+			ok = <-chmig
+		} else {
+			ok = helpers.UpdateRolePerms(content, config.AuthServerUrl)
+		}
 
 		if ok {
 			fmt.Printf("✅ Committing: %s\n", fingerprint)
@@ -179,6 +193,10 @@ func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Poo
 			tx.Rollback(ctx)
 			break //stop processing
 		}
+	}
+
+	if !ok {
+		log.Fatalf("Stopping...")
 	}
 }
 
@@ -272,7 +290,8 @@ func main() {
 			if cmd == "create" {
 				createMigration(ctx, config, pool, nameArgs, "core")
 			} else {
-				createMigration(ctx, config, pool, nameArgs, "json")
+				// create meta migration. only authz metadata for now:
+				createMigration(ctx, config, pool, nameArgs, "authz")
 			}
 		default:
 			fmt.Println(helpTxt)

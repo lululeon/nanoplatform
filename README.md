@@ -48,8 +48,3 @@ pg | localhost:5432
 supertokens (auth-be)| http://localhost:3567/hello
 auth service (auth-fe)| http://localhost:7567
 
----
-
-# TODOS
-- [ ] restrict `auth/cmd/api/routes.go` allowed origins eg to localhost:3000
-- [ ] auth.helper `post()` should not use hardcoded urls

@@ -65,6 +65,8 @@ services:
         condition: service_healthy
     ports:
       - "7567:7567"
+    environment:
+      SUPERTOKENS_SERVER_URL: "http://host.docker.internal:3567"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7567/ping"]
       interval: 15s

@@ -1,7 +1,7 @@
 package pkg
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/supertokens/supertokens-golang/recipe/session"
 	"github.com/supertokens/supertokens-golang/recipe/thirdparty"
@@ -15,13 +15,14 @@ type RolePerm struct {
 	Permissions []string `json:"permissions"`
 }
 
-func InitSupertokensAuth() error {
+func InitSupertokensAuth(supertokensServerUrl string) error {
+	log.Println("InitSupertokensAuth : >>> starting...")
 	apiBasePath := "/auth"
 	websiteBasePath := "/auth"
 	err := supertokens.Init(supertokens.TypeInput{
 		Supertokens: &supertokens.ConnectionInfo{
 			// https://try.supertokens.com is for demo purposes. Replace this with the address of your core instance (sign up on supertokens.com), or self host a core.
-			ConnectionURI: "https://try.supertokens.com",
+			ConnectionURI: supertokensServerUrl,
 			// APIKey: <API_KEY(if configured)>,
 		},
 		AppInfo: supertokens.AppInfo{
@@ -45,35 +46,39 @@ func InitSupertokensAuth() error {
 							ClientID:     "467101b197249757c71f",
 							ClientSecret: "e97051221f4b6426e8fe8d51486396703012f5bd",
 						}),
-						thirdparty.Apple(tpmodels.AppleConfig{
-							ClientID: "4398792-io.supertokens.example.service",
-							ClientSecret: tpmodels.AppleClientSecret{
-								KeyId:      "7M48Y4RYDL",
-								PrivateKey: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgu8gXs+XYkqXD6Ala9Sf/iJXzhbwcoG5dMh1OonpdJUmgCgYIKoZIzj0DAQehRANCAASfrvlFbFCYqn3I2zeknYXLwtH30JuOKestDbSfZYxZNMqhF/OzdZFTV0zc5u5s3eN+oCWbnvl0hM+9IW0UlkdA\n-----END PRIVATE KEY-----",
-								TeamId:     "YWQCXGJRJL",
-							},
-						}),
+						// thirdparty.Apple(tpmodels.AppleConfig{
+						// 	ClientID: "4398792-io.supertokens.example.service",
+						// 	ClientSecret: tpmodels.AppleClientSecret{
+						// 		KeyId:      "7M48Y4RYDL",
+						// 		PrivateKey: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgu8gXs+XYkqXD6Ala9Sf/iJXzhbwcoG5dMh1OonpdJUmgCgYIKoZIzj0DAQehRANCAASfrvlFbFCYqn3I2zeknYXLwtH30JuOKestDbSfZYxZNMqhF/OzdZFTV0zc5u5s3eN+oCWbnvl0hM+9IW0UlkdA\n-----END PRIVATE KEY-----",
+						// 		TeamId:     "YWQCXGJRJL",
+						// 	},
+						// }),
 						// thirdparty.Facebook(tpmodels.FacebookConfig{
 						//    ClientID:     "FACEBOOK_CLIENT_ID",
 						//    ClientSecret: "FACEBOOK_CLIENT_SECRET",
 						// }),
 					}}}),
-			session.Init(nil), // initializes session features
+			session.Init(nil),   // initializes session features
+			userroles.Init(nil), // initialise userroles features
 		},
 	})
 
 	if err != nil {
+		log.Printf("InitSupertokensAuth : could not initialise! Err: %s", err.Error())
 		return err
 	}
+
+	log.Println("InitSupertokensAuth : <<< Done.")
 	return nil
 }
 
-func AddRolePerms(rp RolePerm) {
-	fmt.Printf("Processing :%v\n", rp)
-	supertokenAddRolePerm(rp.Role, rp.Permissions)
-}
-
-func supertokenAddRolePerm(role string, perms []string) {
+// ---------------------------------------------------------------------
+//
+//	All supertokens-facing methods begin with ST*
+//
+// --------------------------------------------------------------------
+func STAddRolePerm(role string, perms []string) error {
 	/**
 	* You can choose to give multiple or no permissions when creating a role
 	* createNewRoleOrAddPermissions("user", []string{}) - No permissions
@@ -82,11 +87,27 @@ func supertokenAddRolePerm(role string, perms []string) {
 	resp, err := userroles.CreateNewRoleOrAddPermissions(role, perms, nil)
 
 	if err != nil {
-		// TODO: Handle error
-		return
+		log.Printf("CreateNewRoleOrAddPermissions failed! %v", err)
+		return err
 	}
+
 	if !resp.OK.CreatedNewRole {
 		// The role already exists
-		fmt.Printf("⚠️ [%s-%v] already exists.", role, perms)
+		log.Printf("⚠️ [%s|%v] already exists.", role, perms)
 	}
+	return nil
+}
+
+func STDelRolePerm(role string, perms []string) error {
+	resp, err := userroles.RemovePermissionsFromRole(role, perms, nil)
+
+	if err != nil {
+		log.Printf("RemovePermissionsFromRole failed! %v", err)
+		return err
+	}
+
+	if resp.UnknownRoleError != nil {
+		log.Printf("⚠️ [%s|%v] no such permission exists.", role, perms)
+	}
+	return nil
 }

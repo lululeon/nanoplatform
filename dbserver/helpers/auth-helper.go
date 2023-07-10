@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -13,45 +12,83 @@ type AuthZMigration struct {
 	Migrations []RolePermItem `json:"authz"`
 }
 
-type RolePermItem struct {
-	Action      string   `json:"action"`
+type SupertokensRolePermItem struct {
 	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
 }
 
-func AddRolePerms(jsondata string) error {
+type RolePermItem struct {
+	Action string `json:"action"`
+	*SupertokensRolePermItem
+}
+
+func UpdateRolePerms(jsondata string, authServerUrl string) bool {
+	// TODO: use env vars
+	var addUrl = fmt.Sprintf("%s/%s", authServerUrl, "add-role-perm")
+	var delUrl = fmt.Sprintf("%s/%s", authServerUrl, "remove-role-perm")
+
 	// parse
 	var authz AuthZMigration
 	jsonErr := json.Unmarshal([]byte(jsondata), &authz)
 	if jsonErr != nil {
-		return jsonErr
+		fmt.Printf("UpdateRolePerms - unmarshalling: %v\n", jsonErr)
+		return false
 	}
 
+	var ok bool = true
 	for _, authMig := range authz.Migrations {
-		if authMig.Action == "add" {
-			fmt.Printf("Processing: %s, %s, %s\n", authMig.Action, authMig.Role, authMig.Permissions)
-			postBody, _ := json.Marshal(jsondata)
-			post(postBody)
+		endpoint := addUrl
+		httpMethod := http.MethodPut
+
+		if authMig.Action != "add" {
+			// remove
+			endpoint = delUrl
+			httpMethod = http.MethodPost
+		}
+
+		fmt.Printf("UpdateRolePerms: %s | %s | %s\n", authMig.Action, authMig.Role, authMig.Permissions)
+
+		// create object of type SupertokensRolePermItem
+		stRoleItem := SupertokensRolePermItem{
+			Role:        authMig.Role,
+			Permissions: authMig.Permissions,
+		}
+
+		postBody, _ := json.Marshal(stRoleItem)
+
+		ok = sendRequest(httpMethod, endpoint, postBody)
+		if !ok {
+			break
 		}
 	}
 
-	return nil
+	return ok
 }
 
-func post(postBody []byte) {
-	responseBody := bytes.NewBuffer(postBody)
-	//Leverage Go's HTTP Post function to make request
-	resp, err := http.Post("https://localhost:7567/add-role-perm", "application/json", responseBody)
-	//Handle Error
+func sendRequest(method string, endpoint string, payload []byte) bool {
+	req, err := http.NewRequest(method, endpoint, bytes.NewReader(payload))
 	if err != nil {
-		log.Fatalf("An Error Occured %v", err)
+		fmt.Printf("Http request setup error: %v\n", err)
+		return false
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Http request failed: err: %v\n", err)
+		return false
 	}
 	defer resp.Body.Close()
+
 	//Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalln(err)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 202) {
+		bs := string(bodyBytes)
+		fmt.Printf("Http request failed: status: [%d] body [%s] err: %v\n", resp.StatusCode, bs, err)
+		return false
 	}
-	sb := string(body)
-	log.Println(sb)
+
+	return true
 }

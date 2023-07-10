@@ -8,7 +8,7 @@ import (
 )
 
 type JsonResponse struct {
-	Error   bool   `json:"error"`
+	Ok      bool   `json:"ok"`
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"` // allow this to be omitted when it's empty
 }
@@ -19,7 +19,8 @@ func respond(w http.ResponseWriter, payload JsonResponse) {
 
 	// send response
 	w.Header().Set("Content-Type", "application/json")
-	if !payload.Error {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if payload.Ok {
 		w.WriteHeader(http.StatusAccepted)
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
@@ -28,12 +29,9 @@ func respond(w http.ResponseWriter, payload JsonResponse) {
 }
 
 func (app *Config) AuthService(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-
 	response := JsonResponse{
-		Error:   false,
-		Message: "auth service",
+		Ok:      true,
+		Message: "auth service ok",
 	}
 
 	respond(w, response)
@@ -41,22 +39,62 @@ func (app *Config) AuthService(w http.ResponseWriter, r *http.Request) {
 
 func (app *Config) AddRolePerm(w http.ResponseWriter, r *http.Request) {
 	var rp pkg.RolePerm
+	var err error
 	response := JsonResponse{
-		Error:   false,
-		Message: "auth service",
+		Ok:      true,
+		Message: "",
 	}
 
-	err := json.NewDecoder(r.Body).Decode(&rp)
+	err = json.NewDecoder(r.Body).Decode(&rp)
 	if err != nil {
-		response.Error = true
-		response.Message = "Invalid JSON body"
+		e := fmt.Sprintf("AddRolePerm: Could not parse request body %s", err.Error())
+		response.Ok = false
+		response.Message = e
 		respond(w, response)
 		return
 	}
 
-	// TODO: send to supertokens
-	// ...
+	// send to supertokens
+	err = pkg.STAddRolePerm(rp.Role, rp.Permissions)
+	if err != nil {
+		e := fmt.Sprintf("AddRolePerm: failure @ st endpoint: %s", err.Error())
+		response.Ok = false
+		response.Message = e
+		respond(w, response)
+		return
+	}
 
-	response.Message = fmt.Sprintf("got: %+v", rp)
+	response.Message = fmt.Sprintf("Processed: %+v", rp)
+	respond(w, response)
+}
+
+func (app *Config) RemoveRolePerm(w http.ResponseWriter, r *http.Request) {
+	var rp pkg.RolePerm
+	var err error
+	response := JsonResponse{
+		Ok:      true,
+		Message: "",
+	}
+
+	err = json.NewDecoder(r.Body).Decode(&rp)
+	if err != nil {
+		e := fmt.Sprintf("RemoveRolePerm: Could not parse request body %s", err.Error())
+		response.Ok = false
+		response.Message = e
+		respond(w, response)
+		return
+	}
+
+	// send to supertokens
+	err = pkg.STDelRolePerm(rp.Role, rp.Permissions)
+	if err != nil {
+		e := fmt.Sprintf("RemoveRolePerm: failure @ st endpoint: %s", err.Error())
+		response.Ok = false
+		response.Message = e
+		respond(w, response)
+		return
+	}
+
+	response.Message = fmt.Sprintf("Processed: %+v", rp)
 	respond(w, response)
 }
