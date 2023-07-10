@@ -33,3 +33,18 @@ start all services as docker containers | `docker compose up -d`
 
 Notes:
 - `go install` should cause `go.sum` files to be created or modified, if they are new or changed. Note: there doesn't seem to be a trivial way to install *all* modules at once.
+
+### Creating and running migrations
+- First install: `make init`
+- Running migrations `make migrate`
+- creating a **regular sql** migration `make create <name here>`
+- creating a migration only for **authz metadata**: `make create-meta <name here>`
+
+### Service Enpoints
+Service | endpoint
+---|------
+GQL | http://localhost:5000/graphql
+pg | localhost:5432
+supertokens (auth-be)| http://localhost:3567/hello
+auth service (auth-fe)| http://localhost:7567
+

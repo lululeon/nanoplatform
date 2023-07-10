@@ -12,14 +12,17 @@ import (
 type Config struct {
 	Env string
 
-	PgUser        string
-	PgPwd         string
-	PgDb          string
-	PgHost        string
-	PgPort        string
-	PgUrl         string
-	MigrationsDir string
-	MainSchema    string
+	PgUser               string
+	PgPwd                string
+	PgDb                 string
+	PgHost               string
+	PgPort               string
+	PgUrl                string
+	MigrationsDir        string
+	MainSchema           string
+	SupertokensSchema    string
+	AuthServerUrl        string
+	SupertokensServerUrl string
 }
 
 func getEnvWithDefaultAndBlankableFlag(key string, defaultValue string, canBeBlank bool) string {
@@ -61,23 +64,26 @@ func LoadConfig() *Config {
 	pghost := getEnv("PG_HOST")
 	pgport := getEnvWithDefault("PG_PORT", "5432")
 	mainSchema := getEnv("MAIN_SCHEMA")
+	supertokensSchema := getEnv("SUPERTOKENS_SCHEMA")
 	migDir := getEnv("MIGPATH")
+	authServerUrl := getEnv("AUTH_SERVER_URL")
+	stServerUrl := getEnv("SUPERTOKENS_SERVER_URL")
 
-	PGURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
-	if strings.EqualFold(env, "local") {
-		PGURL += "?sslmode=disable"
-	}
+	pgUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
 
 	config := Config{
-		Env:           env,
-		PgUser:        pguser,
-		PgPwd:         pgpwd,
-		PgDb:          pgdb,
-		PgHost:        pghost,
-		PgPort:        pgport,
-		MainSchema:    mainSchema,
-		PgUrl:         PGURL,
-		MigrationsDir: migDir,
+		Env:                  env,
+		PgUser:               pguser,
+		PgPwd:                pgpwd,
+		PgDb:                 pgdb,
+		PgHost:               pghost,
+		PgPort:               pgport,
+		MainSchema:           mainSchema,
+		SupertokensSchema:    supertokensSchema,
+		PgUrl:                pgUrl,
+		MigrationsDir:        migDir,
+		AuthServerUrl:        authServerUrl,
+		SupertokensServerUrl: stServerUrl,
 	}
 
 	return &config
@@ -87,7 +93,7 @@ func HydrateSQLTemplate(templateStr string, config Config) string {
 	replacer := strings.NewReplacer(
 		"${DB_NAME}", config.PgDb,
 		"${MAIN_SCHEMA}", config.MainSchema,
-		// TODO: shld really be sep user; proceeding as-is for simplicity for now
+		"${SUPERTOKENS_SCHEMA}", config.SupertokensSchema,
 		"${APP_USER}", config.PgUser,
 		"${APP_USER_PASS}", config.PgPwd,
 	)

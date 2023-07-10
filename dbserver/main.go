@@ -20,6 +20,7 @@ type Migration struct {
 	Id       int
 	Filepath string
 	Name     string
+	Type     string
 	Hash     string
 }
 
@@ -62,7 +63,7 @@ func makeHash(str string) string {
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
-func latestMigration(files []string, lastCommittedId int32) []Migration {
+func getPendingMigrations(files []string, lastCommittedId int32) []Migration {
 	var latestId = int(lastCommittedId)
 	var migs []Migration
 
@@ -75,14 +76,20 @@ func latestMigration(files []string, lastCommittedId int32) []Migration {
 			log.Fatalf("Encountered file [%s] with bad name - cannot extract unique identifier for migration. Bailing.", file)
 		}
 		id, _ := strconv.Atoi(file[0:lenIdentifier])
+
 		if id > latestId {
 			_, filename := filepath.Split(file)
 			migName := strings.Split(filename, ".")
+			migType := "core"
+			if strings.EqualFold(filepath.Ext(filename), ".json") {
+				migType = "authz"
+			}
 
 			migs = append(migs, Migration{
 				Id:       id,
 				Filepath: file,
 				Name:     migName[0][5:],
+				Type:     migType,
 			})
 		}
 	}
@@ -95,7 +102,7 @@ func sqlForMigrationsRecord(mig Migration) string {
 		log.Fatalf("Need valid id, name and hash for migration!")
 	}
 
-	return fmt.Sprintf("insert into migrations(id, name, hash) values (%d, '%s', '%s');", mig.Id, mig.Name, mig.Hash)
+	return fmt.Sprintf("insert into migrations(id, name, mig_type, hash) values (%d, '%s', '%s', '%s');", mig.Id, mig.Name, mig.Type, mig.Hash)
 }
 
 func runInTransaction(ctx context.Context, tx pgx.Tx, sqlStrings []string, ch chan bool) {
@@ -148,21 +155,35 @@ func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Poo
 	// prepare for migrations
 	go getLatestCommittedMigrationId(ctx, pool, ch)
 	lastCommittedId := <-ch
-	migs := latestMigration(files, lastCommittedId)
+	migs := getPendingMigrations(files, lastCommittedId)
 
 	var ok bool
+	var fingerprint string
 	for _, mig := range migs {
-		sqlTemplate := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
-		sqlStr := helpers.HydrateSQLTemplate(sqlTemplate, *config)
-
-		mig.Hash = makeHash(sqlStr)
-		sqlHashStore := sqlForMigrationsRecord(mig)
-
-		fingerprint := fmt.Sprintf("Migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
-
 		tx, _ := pool.Begin(ctx)
-		go runInTransaction(ctx, tx, []string{sqlStr, sqlHashStore}, chmig)
-		ok = <-chmig
+		content := getFileContents(fmt.Sprintf("%s/%s", config.MigrationsDir, mig.Filepath))
+		var queries []string
+
+		if mig.Type == "core" {
+			sqlStr := helpers.HydrateSQLTemplate(content, *config)
+			mig.Hash = makeHash(sqlStr)
+			queries = append(queries, sqlStr)
+		} else {
+			// mig.Type authz
+			mig.Hash = makeHash(content)
+		}
+
+		sqlHashStore := sqlForMigrationsRecord(mig)
+		queries = append(queries, sqlHashStore)
+
+		fingerprint = fmt.Sprintf("Migration for [%d][%s][%s]", mig.Id, mig.Name, mig.Hash)
+
+		if mig.Type == "core" {
+			go runInTransaction(ctx, tx, queries, chmig)
+			ok = <-chmig
+		} else {
+			ok = helpers.UpdateRolePerms(content, config.AuthServerUrl)
+		}
 
 		if ok {
 			fmt.Printf("✅ Committing: %s\n", fingerprint)
@@ -173,9 +194,19 @@ func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Poo
 			break //stop processing
 		}
 	}
+
+	if !ok {
+		log.Fatalf("Stopping...")
+	}
 }
 
-func createMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Pool, migName string) {
+func createMigration(
+	ctx context.Context,
+	config *helpers.Config,
+	pool *pgxpool.Pool,
+	migName string,
+	migType string,
+) {
 	ch := make(chan int32)
 
 	go getLatestCommittedMigrationId(ctx, pool, ch)
@@ -183,7 +214,7 @@ func createMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.
 
 	nextId := int(lastCommittedId) + 1
 
-	const allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_ "
+	const allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 	runes := []rune{}
 
 	// toss any funky runes
@@ -194,8 +225,13 @@ func createMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.
 		}
 	}
 
+	// identify regular sql migrations vs metadata migrations controlled by other subsystems
+	ext := "sql"
+	if migType != "core" {
+		ext = "json"
+	}
 	cleanStr := strings.Join(strings.Split(string(runes), " "), "-")
-	targetName := fmt.Sprintf("%04d-%s.sql", nextId, cleanStr)
+	targetName := fmt.Sprintf("%04d-%s.%s", nextId, cleanStr, ext)
 	targetPath := filepath.Join(config.MigrationsDir, targetName)
 
 	emptyBytArray := []byte("")
@@ -205,7 +241,7 @@ func createMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.
 
 func initialiseMigrations(ctx context.Context) {
 	config := helpers.LoadConfig()
-	sqlStr := "create table if not exists migrations (id int primary key, name text not null, hash text not null);"
+	sqlStr := "create table if not exists migrations (id int primary key, name text not null, mig_type text not null, hash text not null);"
 	conn, err := pgx.Connect(ctx, config.PgUrl)
 
 	if err != nil {
@@ -245,13 +281,18 @@ func main() {
 			initialiseMigrations(ctx)
 		case "migrate":
 			runMigration(ctx, config, pool)
-		case "create":
+		case "create", "create-meta":
 			if len(os.Args) < 3 {
 				fmt.Println(createHelpTxt)
 				break
 			}
 			nameArgs := strings.Join(os.Args[2:], "-")
-			createMigration(ctx, config, pool, nameArgs)
+			if cmd == "create" {
+				createMigration(ctx, config, pool, nameArgs, "core")
+			} else {
+				// create meta migration. only authz metadata for now:
+				createMigration(ctx, config, pool, nameArgs, "authz")
+			}
 		default:
 			fmt.Println(helpTxt)
 		}

@@ -1,0 +1,19 @@
+{
+  "authz": [
+    {
+      "action": "add",
+      "role": "guest",
+      "permissions": [
+        "read:public"
+      ]
+    },
+    {
+      "action": "add",
+      "role": "member",
+      "permissions": [
+        "read:own",
+        "write:own"
+      ]
+    }
+  ]
+}
