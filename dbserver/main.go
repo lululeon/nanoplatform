@@ -183,6 +183,10 @@ func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Poo
 			ok = <-chmig
 		} else {
 			ok = helpers.UpdateRolePerms(content, config.AuthServerUrl)
+			if ok {
+				go runInTransaction(ctx, tx, queries, chmig)
+				ok = <-chmig
+			}
 		}
 
 		if ok {
@@ -196,6 +200,9 @@ func runMigration(ctx context.Context, config *helpers.Config, pool *pgxpool.Poo
 	}
 
 	if !ok {
+		if len(migs) == 0 {
+			log.Println("No migrations to run.")
+		}
 		log.Fatalf("Stopping...")
 	}
 }
