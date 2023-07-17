@@ -37,13 +37,19 @@ func UpdateRolePerms(jsondata string, authServerUrl string) bool {
 
 	var ok bool = true
 	for _, authMig := range authz.Migrations {
-		endpoint := addUrl
-		httpMethod := http.MethodPut
+		var endpoint string
+		var httpMethod string
 
-		if authMig.Action != "add" {
-			// remove
+		if authMig.Action == "add" {
+			endpoint = addUrl
+			httpMethod = http.MethodPut
+		} else if authMig.Action == "remove" {
 			endpoint = delUrl
 			httpMethod = http.MethodPost
+		} else {
+			fmt.Printf("UpdateRolePerms - unknown action [%s] - only add|remove supported.\n", authMig.Action)
+			ok = false
+			break
 		}
 
 		fmt.Printf("UpdateRolePerms: %s | %s | %s\n", authMig.Action, authMig.Role, authMig.Permissions)
