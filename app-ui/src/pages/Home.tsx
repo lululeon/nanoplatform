@@ -36,7 +36,10 @@ function Home() {
           <button onClick={() => removeThing(thing)}>Remove</button>
         </div>
       ))}
-      <a href="/add">go here to add more things</a>
+      <a href="/add">go here to add more things (test zustand state mgt)</a>
+      <br />
+      <a href="/unbuilts">go here to list unbuilts (test apollo client and grapqhql backend)</a>
+      <br />
     </>
   )
 }
