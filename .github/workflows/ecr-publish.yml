@@ -1,0 +1,59 @@
+name: Push Images to ECR
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '.env*'
+      - '.vscode/**'
+      - README.md
+
+jobs:
+  
+  build-auth:
+    name: Build Image
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Check out code
+      uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          auth
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Get changed files
+      id: changeset
+      uses: tj-actions/changed-files@v34
+      with:
+        files: auth/**
+
+    - name: Build, tag, push to ECR only if files changed
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: nano-auth-server
+        IMAGE_TAG: latest
+      if: steps.changeset.outputs.any_changed == 'true'
+      run: |
+        echo auth service has changed
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./auth
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: nano-auth-server
+        IMAGE_TAG: latest
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./auth
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
