@@ -13,12 +13,17 @@ func (app *Config) routes() http.Handler {
 	mux := chi.NewRouter()
 
 	mux.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"}, // TODO: restrict to our services only
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   append([]string{"Content-Type"}, supertokens.GetAllCORSHeaders()...),
-		ExposedHeaders:   []string{"Link"},
+		// TODO: extract endpoints
+		AllowedOrigins: []string{"http://localhost:3000", "http://app-ui:3000/", "http://graphql-api:5000"},
+
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: append([]string{"Content-Type"}, supertokens.GetAllCORSHeaders()...),
+		ExposedHeaders: []string{"Link"},
+
+		//warning! this is incompatible with allowedOrigins "*"
 		AllowCredentials: true,
-		MaxAge:           300,
+
+		MaxAge: 300,
 	}))
 
 	// SuperTokens Middleware - adds these apis: https://app.swaggerhub.com/apis/supertokens/FDI/1.16.0
