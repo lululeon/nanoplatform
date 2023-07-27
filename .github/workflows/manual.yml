@@ -1,13 +1,7 @@
-name: Push Images to ECR
+name: Manual ECR Push
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    types: [opened, synchronize]
-    paths:
-      - 'auth/**'
-      - '.github/workflows/ecr*'
+  workflow_dispatch:
 
 jobs:
   
