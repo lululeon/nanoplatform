@@ -26,20 +26,14 @@ jobs:
 
     - name: Login to Amazon ECR
       id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      uses: aws-actions/amazon-ecr-login@v1.6.2
 
-    - name: Get changed files
-      id: changeset
-      uses: tj-actions/changed-files@v34
-      with:
-        files: auth/**
 
     - name: Build, tag, push to ECR only if files changed
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: nano-auth-server
         IMAGE_TAG: latest
-      if: steps.changeset.outputs.any_changed == 'true'
       run: |
         echo auth service has changed
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./auth
