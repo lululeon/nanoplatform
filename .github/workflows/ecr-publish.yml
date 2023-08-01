@@ -3,11 +3,11 @@ name: Push Images to ECR
 on:
   push:
     branches: [ main ]
-  pull_request:
-    types: [opened, synchronize]
     paths:
       - 'auth/**'
       - '.github/workflows/ecr*'
+  # pull_request:
+  #   types: [opened, synchronize]
 
 jobs:
   
