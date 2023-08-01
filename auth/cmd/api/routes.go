@@ -2,6 +2,8 @@ package main
 
 import (
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -12,9 +14,11 @@ import (
 func (app *Config) routes() http.Handler {
 	mux := chi.NewRouter()
 
+	allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+
 	mux.Use(cors.Handler(cors.Options{
 		// TODO: extract endpoints
-		AllowedOrigins: []string{"http://localhost:3000", "http://app-ui:3000/", "http://graphql-api:5000"},
+		AllowedOrigins: allowedOrigins,
 
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: append([]string{"Content-Type"}, supertokens.GetAllCORSHeaders()...),
