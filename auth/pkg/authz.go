@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"log"
+	"os"
 
 	"github.com/supertokens/supertokens-golang/recipe/session"
 	"github.com/supertokens/supertokens-golang/recipe/thirdparty"
@@ -19,7 +20,12 @@ type RolePerm struct {
 
 func InitSupertokensAuth(supertokensServerUrl string) error {
 	log.Println("InitSupertokensAuth : >>> starting...")
-	apiBasePath := "/api/auth"
+
+	// TODO: get from db
+	apiUrl := os.Getenv("AUTH_SERVER_URL")
+	webUrl := os.Getenv("WEB_SERVER_URL")
+
+	apiBasePath := "/"
 	websiteBasePath := "/auth"
 	err := supertokens.Init(supertokens.TypeInput{
 		Supertokens: &supertokens.ConnectionInfo{
@@ -29,8 +35,8 @@ func InitSupertokensAuth(supertokensServerUrl string) error {
 		},
 		AppInfo: supertokens.AppInfo{
 			AppName:         "Unbuilt",
-			APIDomain:       "http://localhost:3000",
-			WebsiteDomain:   "http://localhost:3000",
+			APIDomain:       apiUrl,
+			WebsiteDomain:   webUrl,
 			APIBasePath:     &apiBasePath,
 			WebsiteBasePath: &websiteBasePath,
 		},
