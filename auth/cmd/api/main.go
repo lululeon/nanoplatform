@@ -5,17 +5,20 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"auth/pkg"
 )
-
-const webPort = "7567"
 
 type Config struct {
 	SupertokensServerUrl string
 }
 
 func main() {
+	// TEMP / TODO: get from db
+	serverUrl := strings.Split(os.Getenv("AUTH_SERVER_URL"), ":")
+	webPort := serverUrl[len(serverUrl)-1]
+
 	stServerUrl := os.Getenv("SUPERTOKENS_SERVER_URL")
 	if len(stServerUrl) == 0 {
 		log.Fatal("No value found for supertokens server url, which cannot be blank. Exiting.")
