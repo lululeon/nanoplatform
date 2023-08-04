@@ -10,7 +10,9 @@ RUN chown -R node:node /home/node/graphql-api
 
 # Install dependencies
 USER node
-RUN npm install
+
+# Incl package.json devDeps eg tsc
+RUN NODE_ENV=development npm install
 
 # Copy application files
 COPY --chown=node:node ./src .
