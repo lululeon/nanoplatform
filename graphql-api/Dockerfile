@@ -1,4 +1,4 @@
-FROM node:alpine
+FROM node:bullseye-slim
 
 # Set Node.js app folder
 RUN mkdir -p /home/node/graphql-api/node_modules
