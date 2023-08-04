@@ -17,9 +17,7 @@ func (app *Config) routes() http.Handler {
 	allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
 
 	mux.Use(cors.Handler(cors.Options{
-		// TODO: extract endpoints
 		AllowedOrigins: allowedOrigins,
-
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: append([]string{"Content-Type"}, supertokens.GetAllCORSHeaders()...),
 		ExposedHeaders: []string{"Link"},

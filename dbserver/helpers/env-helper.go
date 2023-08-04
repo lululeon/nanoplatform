@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// TODO: move these to database
 type Config struct {
 	Env string
 
@@ -23,13 +24,17 @@ type Config struct {
 	SupertokensSchema    string
 	AuthServerUrl        string
 	SupertokensServerUrl string
+	AppUser              string
+	AppUserPwd           string
+	GuestUser            string
+	GuestUserPwd         string
 }
 
 func getEnvWithDefaultAndBlankableFlag(key string, defaultValue string, canBeBlank bool) string {
 	value := os.Getenv(key)
 	if len(value) == 0 {
 		if !canBeBlank && defaultValue == "" {
-			msg := fmt.Sprintf("No value for key %s which cannot be blank.", key)
+			msg := fmt.Sprintf("No value for env key %s which cannot be blank.", key)
 			log.Fatal(msg)
 		}
 		return defaultValue
@@ -68,6 +73,10 @@ func LoadConfig() *Config {
 	migDir := getEnv("MIGPATH")
 	authServerUrl := getEnv("AUTH_SERVER_URL")
 	stServerUrl := getEnv("SUPERTOKENS_SERVER_URL")
+	appUser := getEnv("APPUSER")
+	appUserPwd := getEnv("APPUSER_PASSWORD")
+	guestUser := getEnv("GUESTUSER")
+	guestUserPwd := getEnv("GUESTUSER_PASSWORD")
 
 	pgUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pguser, pgpwd, pghost, pgport, pgdb)
 
@@ -84,6 +93,10 @@ func LoadConfig() *Config {
 		MigrationsDir:        migDir,
 		AuthServerUrl:        authServerUrl,
 		SupertokensServerUrl: stServerUrl,
+		AppUser:              appUser,
+		AppUserPwd:           appUserPwd,
+		GuestUser:            guestUser,
+		GuestUserPwd:         guestUserPwd,
 	}
 
 	return &config
@@ -94,8 +107,10 @@ func HydrateSQLTemplate(templateStr string, config Config) string {
 		"${DB_NAME}", config.PgDb,
 		"${MAIN_SCHEMA}", config.MainSchema,
 		"${SUPERTOKENS_SCHEMA}", config.SupertokensSchema,
-		"${APP_USER}", config.PgUser,
-		"${APP_USER_PASS}", config.PgPwd,
+		"${APPUSER}", config.AppUser,
+		"${APPUSER_PASSWORD}", config.AppUserPwd,
+		"${GUESTUSER}", config.GuestUser,
+		"${GUESTUSER_PASSWORD}", config.GuestUserPwd,
 	)
 	migrationStr := replacer.Replace(templateStr)
 
