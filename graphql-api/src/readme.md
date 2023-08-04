@@ -38,9 +38,6 @@ function claimsHandler(req: ReqWithPGSettings, _res: Response, next: NextFunctio
   } else {
     // set guest claims on req...
   }
-
-  console.log('LLDEBUG remove this log line below!!')
-  console.dir(req.jwt)
   return next()
 }
 export const authMiddleware: RequestHandler[] = [sessionVerifier(), claimsHandler as RequestHandler]

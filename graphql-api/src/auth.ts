@@ -6,14 +6,14 @@ import dotenv from 'dotenv'
 
 interface ReqWithPGSettings extends Request {
   ['jwt_userid']: string
-  ['jwt_role']: string
+  ['pgrole']: string
 }
 
 type AsyncHandlerFn = (req: Request, res: Response, next: NextFunction) => Promise<void>
 interface DecodedJWT {
   sub: string // uuid
   // 'st-perm': { t: nnn, v: [] }, // timestamp and value
-  // 'st-role': { t: nnn, v: [] }, // timestamp and value
+  // 'st-role': { t: nnn, v: [] }, // timestamp and value - this is application role, not pg role!!
 }
 
 const asyncHandlerWrapper = (handler: AsyncHandlerFn) => (req: Request, res: Response, next: NextFunction) => {
@@ -27,6 +27,8 @@ const asyncHandlerWrapper = (handler: AsyncHandlerFn) => (req: Request, res: Res
 dotenv.config()
 
 const gqlApi = process.env.AUTH_SERVER_URL
+const appUserRole = process.env.APPUSER || ''
+const guestUserRole = process.env.GUESTUSER || ''
 
 const client = jwksClient({
   jwksUri: `${gqlApi}/jwt/jwks.json`,
@@ -50,14 +52,13 @@ function verifyToken(token: string, req: ReqWithPGSettings, next: NextFunction) 
 
   JsonWebToken.verify(token, getKey, {}, function (err, decoded) {
     if (err) {
+      // not authed
       console.log('verifyToken - will disregard token due to error:', err)
       req['jwt_userid'] = ''
-      req['jwt_role'] = 'guest'
+      req.pgrole = guestUserRole
     } else {
-      console.log('LLDEBUG - remove this log line!!')
-      console.dir(decoded)
       req['jwt_userid'] = (decoded as DecodedJWT).sub
-      req['jwt_role'] = 'member'
+      req.pgrole = appUserRole
     }
 
     return next()

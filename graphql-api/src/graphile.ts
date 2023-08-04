@@ -8,10 +8,11 @@ export default function getGraphileOptions(isProd: boolean): PostGraphileOptions
 
     // Everything returned by pgSettings is applied to the current session with set_config($key, $value, true);
     // note that set_config only supports string values so it is best to only feed pgSettings string values
-    // req metadata in path `jwt.claims.*` already populated by verifyToken method
+    // graphile docs: keys must contain either one or two period (.) characters, and the prefix (the bit before the first period) must not be used by any Postgres extension.
+    // Variables without periods will be interpreted as internal Postgres settings, such as 'role', and will be applied by Postgres.
     pgSettings: async (req: any) => ({
       'jwt.claims.user_id': req['jwt_userid'],
-      'jwt.claims.role': req['jwt_role'],
+      role: req.pgrole,
     }),
 
     // we control schema changes and should restart when appropriate

@@ -16,7 +16,6 @@ init:
 	ENVPATH=./.env go run ./dbserver/ init
 migrate:
 	ENVPATH=./.env go run ./dbserver/ migrate
-	make .restartgql
 create:
 	ENVPATH=./.env go run ./dbserver/ $(MAKECMDGOALS)
 create-meta:
