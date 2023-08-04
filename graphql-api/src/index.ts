@@ -1,29 +1,33 @@
-import express, { Express } from 'express'
+import express, { Express, NextFunction, Request, Response } from 'express'
 import cors from 'cors'
-import { postgraphile } from 'postgraphile'
-import { database, options, port } from './graphile-setup'
 import dotenv from 'dotenv'
-import { verifyToken } from './jwt-verify'
+import postgraphile from 'postgraphile'
+import { authMiddleware } from './auth'
+import getGraphileOptions from './graphile'
 
 dotenv.config()
 
-const app: Express = express()
-
-const origins = (process.env.ALLOWED_ORIGINS || '').split(',')
+// params
+const isProd = process.env.NODE_ENV === 'prod' || process.env.NODE_ENV === 'production'
+const dbUrl: string = process.env.DATABASE_URL || ''
 const schemas = (process.env.GQL_EXPOSED_SCHEMAS || '').split(',')
+const origins = (process.env.ALLOWED_ORIGINS || '').split(',')
 
 const corsOptions = {
   origin: origins,
   methods: ['GET', 'POST'],
 }
 
+// server setup
+const app: Express = express()
 app.use(cors(corsOptions))
-app.use('/graphql', verifyToken)
-app.use(postgraphile(database, schemas, options))
+app.get('/ping', (req: Request, res: Response, _next: NextFunction) => {
+  res.sendStatus(200)
+})
+app.use('/graphql', authMiddleware)
+app.use(postgraphile(dbUrl, schemas, getGraphileOptions(isProd)))
 
-const server = app.listen(port, () => {
-  console.log(`GrapqhQL Server is running on port: ${port}`)
-
-  const address = server.address()
-  console.log(`GrapqhQL Server up and running: ${address}:${port}`)
+const port = process.env.PORT || ''
+app.listen(port, () => {
+  console.dir(`GrapqhQL Server up and running on port ${port}`)
 })
