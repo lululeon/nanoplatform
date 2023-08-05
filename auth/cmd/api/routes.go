@@ -35,7 +35,7 @@ func (app *Config) routes() http.Handler {
 	mux.Use(middleware.Heartbeat("/ping"))
 
 	// authZ
-	mux.Post("/", app.AuthService)
+	mux.Post("/health", app.AuthService)
 	mux.Put("/add-role-perm", app.AddRolePerm)
 	mux.Post("/remove-role-perm", app.RemoveRolePerm)
 

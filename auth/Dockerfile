@@ -1,5 +1,5 @@
 # this docker image, which has go installed,  will build the go app:
-FROM golang:1.20-alpine as builder
+FROM golang:1.21rc4-bookworm as builder
 
 RUN mkdir /app
 
@@ -16,5 +16,9 @@ FROM alpine:latest
 RUN mkdir /app
 
 COPY --from=builder /app/auth-service /app
+
+EXPOSE 7567
+
+HEALTHCHECK --interval=20s CMD curl -f http://localhost:7567/health || exit 1
 
 CMD ["/app/auth-service"]

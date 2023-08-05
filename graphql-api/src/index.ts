@@ -21,7 +21,7 @@ const corsOptions = {
 // server setup
 const app: Express = express()
 app.use(cors(corsOptions))
-app.get('/ping', (req: Request, res: Response, _next: NextFunction) => {
+app.get('/health', (_req: Request, res: Response, _next: NextFunction) => {
   res.sendStatus(200)
 })
 app.use('/graphql', authMiddleware)
