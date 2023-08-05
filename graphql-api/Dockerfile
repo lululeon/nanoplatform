@@ -1,4 +1,4 @@
-FROM node:bullseye-slim
+FROM node:bookworm
 
 # Set Node.js app folder
 RUN mkdir -p /home/node/graphql-api/
@@ -18,4 +18,7 @@ RUN NODE_ENV=development npm ci
 RUN npm run build
 
 EXPOSE 5000
+
+HEALTHCHECK --interval=15s CMD curl -f http://localhost:5000/health || exit 1
+
 CMD [ "node", "./dist/index.js" ]
