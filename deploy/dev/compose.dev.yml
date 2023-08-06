@@ -19,16 +19,21 @@ services:
       retries: 5
   graphql-api:
     image: ${ECR_GQL}
+    healthcheck:
+      test: curl --fail http://127.0.0.1:5000 || exit 1
     restart: always
     ports:
-      - "5000:5000"
+      - "5000:${PORT}"
     environment:
       DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pg-ublt:${PG_PORT}/${POSTGRES_DB}"
       AUTH_SERVER_URL: "http://auth-service:7567"
       APPUSER: ${APPUSER}
       GUESTUSER: ${GUESTUSER}
-      GQL_EXPOSED_SCHEMAS: ${GQL_EXPOSED_SCHEMAS}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      # comma-sep'd string list if more than one:
+      GQL_EXPOSED_SCHEMAS: "${MAIN_SCHEMA}"
+      # comma-sep'd string list if more than one:
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
+      PORT: ${PORT}
     depends_on:
       pg-ublt:
         condition: service_healthy
@@ -52,6 +57,8 @@ services:
       retries: 5
   auth-service:
     image: ${ECR_AUTH}
+    healthcheck:
+      test: curl --fail http://127.0.0.1:7567 || exit 1
     restart: always
     depends_on:
       supertokens:
@@ -59,6 +66,13 @@ services:
     ports:
       - "7567:7567"
     environment:
-      SUPERTOKENS_SERVER_URL: "http://supertokens:3567"
-      AUTH_SERVER_URL: "http://auth-service:7567"
-      WEB_SERVER_URL: "http://localhost:3000"
+      SUPERTOKENS_SERVER_URL: ${SUPERTOKENS_SERVER_URL}
+      AUTH_SERVER_URL: ${AUTH_SERVER_URL}
+      WEB_SERVER_URL: ${WEB_SERVER_URL}
+  app-ui:
+    image: ${ECR_APPUI}
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_GQL_ENDPOINT: ${GRAPHQL_SERVER_URL}

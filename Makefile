@@ -25,6 +25,6 @@ create-meta:
 .restartauth:
 	docker compose restart auth-service
 
-# auth
+
 st.ping:
 	curl http://localhost:3567/hello
