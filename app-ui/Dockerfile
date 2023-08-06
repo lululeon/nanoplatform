@@ -8,7 +8,7 @@ WORKDIR /home/node/app-ui
 COPY . .
 
 RUN chown -R node:node /home/node/app-ui
-RUN chmod + x get-token.sh
+RUN chmod +x ./get-token.sh
 
 # Install dependencies
 USER node
