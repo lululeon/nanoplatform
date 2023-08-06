@@ -52,7 +52,7 @@ services:
     healthcheck:
       test: >
         bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 5
   auth-service:
@@ -76,3 +76,4 @@ services:
       - "3000:3000"
     environment:
       VITE_GQL_ENDPOINT: ${GRAPHQL_SERVER_URL}
+      VITE_TEMP_ACCESS_TOKEN: ${TEMP_ACCESS_TOKEN}
