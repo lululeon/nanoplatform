@@ -1,12 +1,12 @@
-version: '3'
+version: "3"
 
 services:
   pg-ublt:
     image: postgres:14-alpine
     restart: always
     volumes:
-    # /var/lib/postgresql/data is where pg expects to store data, so map a local volume to that:
-    - ${DB_DATAPATH}:/var/lib/postgresql/data
+      # /var/lib/postgresql/data is where pg expects to store data, so map a local volume to that:
+      - ${DB_DATAPATH}:/var/lib/postgresql/data
     ports:
       - "${PG_PORT}:${PG_PORT}"
     environment:
@@ -21,7 +21,13 @@ services:
   graphql-api:
     image: graphile/postgraphile
     restart: always
-    command: ["--connection", "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pg-ublt:${PG_PORT}/${POSTGRES_DB}", "--schema", "${MAIN_SCHEMA}",]
+    command:
+      [
+        "--connection",
+        "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pg-ublt:${PG_PORT}/${POSTGRES_DB}",
+        "--schema",
+        "${MAIN_SCHEMA}",
+      ]
     ports:
       - "5000:5000"
     depends_on:
@@ -52,7 +58,7 @@ services:
     healthcheck:
       test: >
         bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 5
   auth-service:

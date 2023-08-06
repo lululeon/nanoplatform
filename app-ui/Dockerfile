@@ -6,7 +6,12 @@ WORKDIR /home/node/app-ui
 
 # Copy dependencies
 COPY . .
+
+# TODO: remove temp hack
+COPY ../deploy/dev/get-token.sh .
+
 RUN chown -R node:node /home/node/app-ui
+RUN chmod + x get-token.sh
 
 # Install dependencies
 USER node
@@ -17,6 +22,6 @@ RUN NODE_ENV=development npm ci
 
 EXPOSE 3000
 
-# build / transpile for
+# build / transpile and host for docker env.
 # TODO: proper build.
-CMD [ "npm", "run", "dev" ]
+CMD [ "./node_modules/.bin/vite", "--host", "--port", "3000"]

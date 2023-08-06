@@ -15,6 +15,7 @@ const origins = (process.env.ALLOWED_ORIGINS || '').split(',')
 
 const corsOptions = {
   origin: origins,
+  credentials: true,
   methods: ['GET', 'POST'],
 }
 
