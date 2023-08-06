@@ -7,9 +7,6 @@ WORKDIR /home/node/app-ui
 # Copy dependencies
 COPY . .
 
-# TODO: remove temp hack
-COPY ../deploy/dev/get-token.sh .
-
 RUN chown -R node:node /home/node/app-ui
 RUN chmod + x get-token.sh
 
